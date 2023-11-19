@@ -77,7 +77,13 @@ def api_get_log(url, vessel_name):
             return None
         else:
             reg_id = re.findall('var id = (.*);', r.text)
-            #print(reg_id[0])
+            print(reg_id[0])
+            reg_trackPoints = re.findall('<textarea id=.notes. [^>]*>([^<]*)</textarea>', r.text, re.DOTALL)
+            notes = reg_trackPoints[0]
+            #print("NOTES: {}".format(notes))
+
+            reg_id = re.findall('var id = (.*);', r.text)
+            print(reg_id[0])
             reg_trackPoints = re.findall('var trackPoints = (.*)\.reverse\(\);', r.text)
             #print(reg_trackPoints[0])
             trackPoints = re.sub(r'new Date\(', '', reg_trackPoints[0])
@@ -172,7 +178,11 @@ def api_get_log(url, vessel_name):
                 linestring += "{} {},".format(lng, lat)
             #print(linestring)
             # Return Geometry linestring alone with first and last coordinates
-            return ("LINESTRING ({})".format(linestring[1:-1]), linePoints[0], linePoints[-1])
+            return (
+                    ("LINESTRING ({})".format(linestring[1:-1]), linePoints[0], linePoints[-1]),
+                    notes,
+            )
+
 
 def main():
         """
@@ -190,7 +200,7 @@ def main():
                     line_count += 1
                 else:
                     vessel_name = row[2]
-                    geom = api_get_log(row[0], vessel_name)
+                    geom, notes = api_get_log(row[0], vessel_name)
                     #print(f'[{row[1]}] FROM [{row[2]}] TO [{row[3]}] start [{row[4]}] end [{row[5]}] geom {geom}.')
                     _from_lat, _from_lng = geom[1].split(',')
                     _to_lat, _to_lng = geom[2].split(',')
@@ -207,6 +217,7 @@ def main():
                     mylog['_from_time'] = row[4]
                     mylog['_to_time'] = row[5] 
                     mylog['track_geom'] = geom[0]
+                    mylog["notes"] = notes
                     #print(mylog)
                     mydict.append(mylog)
                     line_count += 1
