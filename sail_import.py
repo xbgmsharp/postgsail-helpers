@@ -51,6 +51,7 @@ base_url = 'https://saillogger.com/log/'
 _headers = {
     'User-Agent' : 'saillog exporter', # User-agent
     'Connection' : 'Keep-Alive',
+    # 'Cookie': 'cookieconsent_status=dismiss; csrftoken=x; sessionid=x',  # FIXME: you may need to copy the cookies from your browser (network tab on web toolbar or similar)
 }
 
 pp = pprint.PrettyPrinter(indent=4)
