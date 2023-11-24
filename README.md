@@ -30,16 +30,16 @@ $ <python dir>\Scripts\pip3.exe install requests simplejson
 ```
 
 ## Get started
-Export your logs as CSV from Saillogger, you should get a file like `Saillogger_Logs_Export.csv`.
+In Saillogger web portal, make you log public in the settings, then export your logs as CSV, you should get a file like `Saillogger_Logs_Export.csv`.
 
-The script read this file and export all metrics for each log.
+The script read this file and access each log to export all metrics for each log.
 
 If everything goes well, the output consist in a list of files, `sailog_metrics_<boatName>_<logId>.csv` and `sailog_logbook_<boatName>.csv`.
 
-Generate the CSV header file
+Generate the CSV header file and merge the file in the correct time order.
 ```bash
 $ head -1 `ls -d $(ls sailog_metrics*csv | head -1)` > sailog_metrics.csv
-$ cat `ls sailog_metrics*.csv | sort -V ` | grep -v time >> sailog_metrics.csv
+$ cat `ls sailog_metrics*.csv | sort -V` | grep -v time >> sailog_metrics.csv
 ```
 
-Send the file `sailog_metrics.csv` for me to import in the database.
+Send the file `sailog_metrics.csv` to me to import it in the database.
