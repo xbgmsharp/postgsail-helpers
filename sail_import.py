@@ -14,7 +14,7 @@
 # $ apt-get install python3-dateutil python3-simplejson python3-requests python3-openssl jq
 #
 # Requirement
-# $ python -m pip install requests simplejson python-dateutil 
+# $ python -m pip install requests simplejson python-dateutil
 #
 # Requirement on Windows on Python 3
 # <python dir>\Scripts\pip3.exe install requests simplejson
@@ -41,7 +41,7 @@ import pprint
 import re
 from dateutil import parser
 
-# my data rows as dictionary objects 
+# my data rows as dictionary objects
 mydict = []
 mytrack = []
 vessel_id = '1234567890'
@@ -66,6 +66,31 @@ def write_csv(results, filename):
                     mycsv.writerow(row)
         fp.close()
 
+def js_to_python_dict(js_obj_str):
+    # Step 1: Replace new Date(...) with quoted string (optional)
+    #js_obj_str = re.sub(r'new Date\(.*\)', r'"\1"', js_obj_str)
+    #js_obj_str = re.sub(r'new Date\(([^)]*)\)', r'"\1"', js_obj_str)
+    js_obj_str = re.sub(r'\n(\w+):', r'"\1":', js_obj_str)
+    #print('js_obj_str1', js_obj_str)
+
+    js_obj_str = re.sub(r'new Date\(\"(.*?)\"\)', r'"\1"', js_obj_str)
+    #print('js_obj_str2', js_obj_str)
+
+    # Step 3: Replace single quotes with double quotes (optional, if you expect single quotes)
+    js_obj_str = js_obj_str.replace("'", '"')
+    #print('js_obj_str3', js_obj_str)
+
+    # Step clean up json
+    # Remove the last comma before }
+    js_obj_str = re.sub(r',\s*}', '}', js_obj_str)
+
+    try:
+        # Step 4: Use ast.literal_eval safely
+        return json.loads(js_obj_str)
+    except Exception as e:
+        print(f"Failed to parse: {js_obj_str}\nError: {e}")
+        return None
+
 def api_get_log(url, vessel_name):
         """Fetch log entry and parse it"""
         print(base_url+url)
@@ -77,16 +102,22 @@ def api_get_log(url, vessel_name):
         else:
             reg_id = re.findall('var id = (.*);', r.text)
             #print(reg_id[0])
-            reg_trackPoints = re.findall('var trackPoints = (.*)\.reverse\(\);', r.text)
-            #print(reg_trackPoints[0])
-            trackPoints = re.sub(r'new Date\(', '', reg_trackPoints[0])
-            trackPoints = re.sub(r'\)', '', trackPoints)
-            trackPoints = re.sub(r'],]', ']]', trackPoints)
+            #reg_trackPoints = re.findall('var trackPoints = (.*)\.reverse\(\);', r.text)
+            match = re.search(r'var\s+trackPoints\s*=\s*(\[[\s\S]*?\])\.reverse\(\);', r.text)
+            reg_trackPoints = match.group(1)
+            #print(reg_trackPoints)
+            object_blocks = re.findall(r'{[^{}]*}', reg_trackPoints)
+            #print(object_blocks)
+            parsed_objects = [js_to_python_dict(obj) for obj in object_blocks]
+            #print(parsed_objects[0]['id'])
+            #trackPoints = re.sub(r'new Date\(', '', reg_trackPoints[0])
+            #trackPoints = re.sub(r'\)', '', trackPoints)
+            #trackPoints = re.sub(r'],]', ']]', trackPoints)
             # [41.4417083333, 2.250975, 158.9, new Date("Sat, 14 May 2022 12:22:33 +0000"), 0.0, 7.4, 524569]
             # [ lat, lng , COG, time, SOG, wind_speed, id]
             # [38.1240411, 13.3709678, 343.5, new Date("Sun, 23 Apr 2023 13:28:23 +0000"), 0.0, 12.9, '', 1024791]
             #print(trackPoints)
-            trackPoints = trackPoints[2:-2].split('],[')
+            #trackPoints = trackPoints[2:-2].split('],[')
             reg_linePoints = re.findall('var linePoints = (.*);', r.text)
             #print(reg_linePoints[0])
             reg_name = re.findall('var name = "(.*)";', r.text)
@@ -98,16 +129,27 @@ def api_get_log(url, vessel_name):
             reg_max_speed = re.findall('var max_speed = (.*);', r.text)
             reg_avg_speed = re.findall('var avg_speed = (.*);', r.text)
             reg_max_wind_speed = re.findall('var max_wind_speed = (.*);', r.text)
+            reg_avg_wind_speed = re.findall('var avg_wind_speed = (.*);', r.text)
             # create csv from trackPoints
             mytrack = []
             i = 0
-            for entry in trackPoints:
-                print(entry)
-                lat, lng, cog, day, time, sog, wind_speed, note, _id = entry.split(', ')
+            for entry in parsed_objects:
+                #print(entry)
+                #lat, lng, cog, day, time, sog, wind_speed, note, _id = entry.split(', ')
+                lat = entry['lat']
+                lng = entry['lng']
+                cog = entry['speed']
+                time = entry['date']
+                sog = entry['speed']
+                wind_speed = entry['windSpeed']
+                note = entry['notes']
+                heading = entry['heading']
+                _id = entry['id']  # `id` is a Python builtin, so safer to call it `_id`
+
                 # map to metrics table
                 # first entry moored
                 if i == 0:
-                    dt = parser.parse(day[1:] + ', ' + time[:-1])
+                    dt = parser.parse(time)
                     newtime = dt - datetime.timedelta(0,60) # - 30 seconds
                     mylog = {}
                     mylog['time'] = newtime
@@ -115,33 +157,39 @@ def api_get_log(url, vessel_name):
                     mylog['vessel_id'] = vessel_id
                     mylog['latitude'] = lat
                     mylog['longitude'] = lng
-                    mylog['speedoverground'] = 0.0
-                    mylog['courseovergroundtrue'] = cog
-                    mylog['anglespeedapparent'] = ''
+                    mylog['speedoverground'] = sog
+                    mylog['courseovergroundtrue'] = None
+                    mylog['anglespeedapparent'] = None
                     mylog['windspeedapparent'] = wind_speed
                     mylog['status'] = 'moored'
-                    mylog['metrics'] = ''
+                    mylog['metrics'] = json.dumps({
+                        "navigation.headingTrue": heading,
+                        "environment.wind.speedTrue": wind_speed
+                    })
                     #print(mylog)
                     mytrack.append(mylog)
                 mylog = {}
-                mylog['time'] = day[1:] + ', ' + time[:-1]
+                mylog['time'] = time
                 mylog['client_id'] = None
                 mylog['vessel_id'] = vessel_id
                 mylog['latitude'] = lat
                 mylog['longitude'] = lng
                 mylog['speedoverground'] = sog
-                mylog['courseovergroundtrue'] = cog
-                mylog['anglespeedapparent'] = ''
+                mylog['courseovergroundtrue'] = None
+                mylog['anglespeedapparent'] = None
                 mylog['windspeedapparent'] = wind_speed
                 mylog['status'] = 'sailing'
-                mylog['metrics'] = ''
+                mylog['metrics'] = json.dumps({
+                      "navigation.headingTrue": heading,
+                      "environment.wind.speedTrue": wind_speed
+                })
                 #print(mylog)
                 mytrack.append(mylog)
                 # last entry moored
                 #print(len(trackPoints))
                 #print(i+1)
-                if len(trackPoints) == i+1:
-                    dt = parser.parse(day[1:] + ', ' + time[:-1])
+                if len(parsed_objects) == i+1:
+                    dt = parser.parse(time)
                     newtime = dt + datetime.timedelta(0,60) # + 30 seconds
                     mylog = {}
                     mylog['time'] = newtime
@@ -149,12 +197,15 @@ def api_get_log(url, vessel_name):
                     mylog['vessel_id'] = vessel_id
                     mylog['latitude'] = lat
                     mylog['longitude'] = lng
-                    mylog['speedoverground'] = 0.0
-                    mylog['courseovergroundtrue'] = cog
-                    mylog['anglespeedapparent'] = ''
+                    mylog['speedoverground'] = sog
+                    mylog['courseovergroundtrue'] = None
+                    mylog['anglespeedapparent'] = None
                     mylog['windspeedapparent'] = wind_speed
                     mylog['status'] = 'moored'
-                    mylog['metrics'] = ''
+                    mylog['metrics'] = json.dumps({
+                         "navigation.headingTrue": heading,
+                         "environment.wind.speedTrue": wind_speed
+                    })
                     #print(mylog)
                     mytrack.append(mylog)
                 i += 1
