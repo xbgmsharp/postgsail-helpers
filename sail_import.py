@@ -4,7 +4,7 @@
 #------------------------------------------------------------------------
 # postgsail-helpers tools: saillogger exporter
 #
-# Copyright 2016-2023 xbgmsharp <xbgmsharp@gmail.com>. All Rights Reserved.
+# Copyright 2016-2025 xbgmsharp <xbgmsharp@gmail.com>. All Rights Reserved.
 # License:  GNU General Public License version 3 or later; see LICENSE.txt
 # Website:  https://github.com/xbgmsharp/postgsail-helpers
 #------------------------------------------------------------------------
