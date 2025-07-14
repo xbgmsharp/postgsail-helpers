@@ -106,9 +106,25 @@ def api_get_log(url, vessel_name):
             match = re.search(r'var\s+trackPoints\s*=\s*(\[[\s\S]*?\])\.reverse\(\);', r.text)
             reg_trackPoints = match.group(1)
             #print(reg_trackPoints)
-            object_blocks = re.findall(r'{[^{}]*}', reg_trackPoints)
-            #print(object_blocks)
+            
+            # Saillogger has nested JSON object since 2025. The end of the nested object makes
+            # it unique (two closing brackets). Check for that special pattern in reg_trackPoints
+            if '},\n},\n{' in reg_trackPoints:
+                # Use a regex that extracts JS objects starting with {id: ... and ending with }
+                print("2025 pattern found, using specific regex to extract objects")
+                object_blocks = [
+                    match + "}"
+                    for match in re.findall(
+                        r'\{\s*\nid[\s\S]*?notes:.*?\n', reg_trackPoints
+                    )
+                ]
+                #print(object_blocks)
+            else:
+                print("Older trip log found, using default regex")
+                object_blocks = re.findall(r'{[^{}]*}', reg_trackPoints)
+
             parsed_objects = [js_to_python_dict(obj) for obj in object_blocks]
+            #print(parsed_objects[0])
             #print(parsed_objects[0]['id'])
             #trackPoints = re.sub(r'new Date\(', '', reg_trackPoints[0])
             #trackPoints = re.sub(r'\)', '', trackPoints)
